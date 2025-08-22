@@ -19,6 +19,36 @@ header {
     margin-bottom: 2rem;
 }
 
+.header-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+}
+
+.header-text {
+    text-align: center;
+    flex: 1;
+    min-width: 300px;
+}
+
+.logo-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.usc-logo {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+    padding: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
 header h1 {
     font-size: 2.5rem;
     margin-bottom: 0.5rem;
@@ -27,6 +57,12 @@ header h1 {
 header p {
     font-size: 1.2rem;
     opacity: 0.9;
+}
+
+#countdown {
+    font-size: 1.1rem;
+    text-align: center;
+    font-weight: bold;
 }
 
 main {
@@ -202,8 +238,22 @@ main {
         grid-template-columns: 1fr;
     }
     
+    .header-content {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .header-text {
+        min-width: auto;
+    }
+    
     header h1 {
         font-size: 2rem;
+    }
+    
+    .usc-logo svg {
+        width: 40px;
+        height: 40px;
     }
     
     .modal-content {
