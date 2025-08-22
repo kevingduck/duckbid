@@ -7,8 +7,8 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'duckbid2024';
 
-// Auction end time (August 29, 2024 at 2:00 PM EST)
-const AUCTION_END_TIME = new Date('2024-08-29T14:00:00-04:00');
+// Auction end time (August 29, 2025 at 2:00 PM EST)
+const AUCTION_END_TIME = new Date('2025-08-29T14:00:00-04:00');
 
 // Middleware
 app.use(cors());
