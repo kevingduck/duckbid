@@ -56,7 +56,6 @@ function renderAuctionItems() {
             <p><strong>Description:</strong> ${item.description}</p>
             <p><strong>Event Date:</strong> ${item.date}</p>
             <div class="current-bid">Current Bid: $${item.currentBid}</div>
-            ${item.highBidder ? `<div class="high-bidder">High Bidder: ${item.highBidder.name}</div>` : ''}
             <button class="bid-button" onclick="openBidModal(${item.id})">Place Bid</button>
         `;
         grid.appendChild(itemDiv);

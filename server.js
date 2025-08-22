@@ -29,54 +29,54 @@ if (!fs.existsSync(DATA_DIR)) {
 
 // Initialize database files
 function initDatabase() {
-    // Default auction items
+    // Rotary Club Football Ticket Auction Items
     const defaultItems = [
         {
             id: 1,
-            title: "Football vs State Championship",
-            description: "2 premium seats, Section A, Row 5",
-            date: "Saturday, Oct 15, 2024",
-            startingBid: 50,
+            title: "SC State Bulldogs",
+            description: "Four Tickets in Section 7 with Parking Pass in Garnet Way",
+            date: "Sept 6 @ 7:00PM",
+            startingBid: 25,
             active: true
         },
         {
             id: 2,
-            title: "Basketball Season Opener",
-            description: "4 courtside tickets with parking pass",
-            date: "Friday, Nov 12, 2024",
-            startingBid: 75,
+            title: "Vanderbilt Commodores",
+            description: "Four Tickets in Section 7 with Parking Pass in Garnet Way",
+            date: "Sept 13",
+            startingBid: 50,
             active: true
         },
         {
             id: 3,
-            title: "Baseball Regional Finals",
-            description: "6 tickets behind home plate",
-            date: "Sunday, May 20, 2024",
-            startingBid: 40,
+            title: "Kentucky Wildcats",
+            description: "Four Tickets in Section 7 with Parking Pass in Garnet Way",
+            date: "Sept 27",
+            startingBid: 75,
             active: true
         },
         {
             id: 4,
-            title: "Soccer Conference Championship",
-            description: "2 VIP tickets with pre-game access",
-            date: "Wednesday, Nov 8, 2024",
-            startingBid: 60,
+            title: "Oklahoma Sooners",
+            description: "Four Tickets in Section 7 with Parking Pass in Garnet Way",
+            date: "Oct 18",
+            startingBid: 100,
             active: true
         },
         {
             id: 5,
-            title: "Wrestling State Tournament",
-            description: "4 front row seats, all-day pass",
-            date: "Saturday, Feb 18, 2024",
-            startingBid: 35,
+            title: "Alabama Crimson Tide",
+            description: "Four Tickets in Section 7 with Parking Pass in Garnet Way",
+            date: "Oct 25",
+            startingBid: 150,
             active: true
         },
         {
             id: 6,
-            title: "Track & Field Championships",
-            description: "8 general admission tickets",
-            date: "Friday, Apr 28, 2024",
-            startingBid: 25,
+            title: "Coastal Carolina Chanticleers",
+            description: "Four Tickets in Section 7 with Parking Pass in Garnet Way",
+            date: "Nov 22",
+            startingBid: 40,
             active: true
         }
     ];
