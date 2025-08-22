@@ -7,6 +7,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'duckbid2024';
 
+// Auction end time (August 29, 2024 at 2:00 PM EST)
+const AUCTION_END_TIME = new Date('2024-08-29T14:00:00-04:00');
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -141,6 +144,10 @@ function getHighestBid(itemId, bids) {
     );
 }
 
+function isAuctionClosed() {
+    return new Date() > AUCTION_END_TIME;
+}
+
 // Initialize database
 initDatabase();
 
@@ -151,17 +158,23 @@ app.get('/api/items', (req, res) => {
     try {
         const items = readItems().filter(item => item.active);
         const bids = readBids();
+        const auctionClosed = isAuctionClosed();
         
         const itemsWithBids = items.map(item => {
             const highestBid = getHighestBid(item.id, bids);
             return {
                 ...item,
                 currentBid: highestBid ? highestBid.amount : item.startingBid,
-                highBidder: highestBid ? { name: highestBid.name } : null
+                highBidder: highestBid ? { name: highestBid.name } : null,
+                auctionClosed
             };
         });
         
-        res.json(itemsWithBids);
+        res.json({
+            items: itemsWithBids,
+            auctionClosed,
+            auctionEndTime: AUCTION_END_TIME.toISOString()
+        });
     } catch (err) {
         res.status(500).json({ error: 'Failed to fetch items' });
     }
@@ -170,6 +183,11 @@ app.get('/api/items', (req, res) => {
 // Place a bid
 app.post('/api/bid', (req, res) => {
     try {
+        // Check if auction is closed
+        if (isAuctionClosed()) {
+            return res.status(403).json({ error: 'Auction has ended. Bidding is now closed.' });
+        }
+
         const { itemId, name, email, phone, amount } = req.body;
         
         if (!itemId || !name || !email || !phone || !amount) {

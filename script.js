@@ -3,6 +3,8 @@ const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:30
 
 // Global auction items storage
 let auctionItems = [];
+let auctionData = {};
+let countdownInterval;
 
 // API helper function
 async function apiCall(endpoint, options = {}) {
@@ -30,7 +32,8 @@ async function apiCall(endpoint, options = {}) {
 // Load items from API
 async function loadItems() {
     try {
-        auctionItems = await apiCall('/items');
+        auctionData = await apiCall('/items');
+        auctionItems = auctionData.items || [];
         return auctionItems;
     } catch (error) {
         alert('Failed to load auction items: ' + error.message);
@@ -48,15 +51,22 @@ function renderAuctionItems() {
         return;
     }
 
+    const auctionClosed = auctionData.auctionClosed;
+
     auctionItems.forEach(item => {
         const itemDiv = document.createElement('div');
         itemDiv.className = 'auction-item';
+        
+        const buttonContent = auctionClosed 
+            ? '<button class="bid-button" disabled style="opacity: 0.6; cursor: not-allowed;">Auction Closed</button>'
+            : `<button class="bid-button" onclick="openBidModal(${item.id})">Place Bid</button>`;
+        
         itemDiv.innerHTML = `
             <h3>${item.title}</h3>
             <p><strong>Description:</strong> ${item.description}</p>
             <p><strong>Event Date:</strong> ${item.date}</p>
             <div class="current-bid">Current Bid: $${item.currentBid}</div>
-            <button class="bid-button" onclick="openBidModal(${item.id})">Place Bid</button>
+            ${buttonContent}
         `;
         grid.appendChild(itemDiv);
     });
@@ -64,6 +74,12 @@ function renderAuctionItems() {
 
 // Open bid modal
 function openBidModal(itemId) {
+    // Check if auction is closed
+    if (auctionData.auctionClosed) {
+        alert('Auction has ended. Bidding is now closed.');
+        return;
+    }
+
     const modal = document.getElementById('bidModal');
     const modalTitle = document.getElementById('modalTitle');
     const item = auctionItems.find(i => i.id === itemId);
@@ -126,11 +142,54 @@ async function handleBidSubmission(event) {
     }
 }
 
+// Countdown timer
+function updateCountdown() {
+    if (!auctionData.auctionEndTime) return;
+    
+    const endTime = new Date(auctionData.auctionEndTime);
+    const now = new Date();
+    const timeLeft = endTime - now;
+    
+    const countdownElement = document.getElementById('countdown');
+    if (!countdownElement) return;
+    
+    if (timeLeft <= 0) {
+        countdownElement.innerHTML = '<strong style="color: #e74c3c;">Auction Ended</strong>';
+        clearInterval(countdownInterval);
+        // Reload to show closed state
+        loadItems().then(() => renderAuctionItems());
+        return;
+    }
+    
+    const days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+    
+    countdownElement.innerHTML = `
+        <strong>Time Remaining: ${days}d ${hours}h ${minutes}m ${seconds}s</strong>
+    `;
+}
+
+function startCountdown() {
+    if (auctionData.auctionClosed) {
+        const countdownElement = document.getElementById('countdown');
+        if (countdownElement) {
+            countdownElement.innerHTML = '<strong style="color: #e74c3c;">Auction Ended</strong>';
+        }
+        return;
+    }
+    
+    updateCountdown();
+    countdownInterval = setInterval(updateCountdown, 1000);
+}
+
 // Initialize the app
 document.addEventListener('DOMContentLoaded', async function() {
     // Load items from API and render
     await loadItems();
     renderAuctionItems();
+    startCountdown();
     
     // Modal event listeners
     document.querySelector('.close').addEventListener('click', closeBidModal);
