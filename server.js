@@ -12,6 +12,11 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('.'));
 
+// Admin route redirect
+app.get('/admin', (req, res) => {
+    res.sendFile(path.join(__dirname, 'admin.html'));
+});
+
 // Database file paths
 const DATA_DIR = './data';
 const ITEMS_FILE = path.join(DATA_DIR, 'items.json');
