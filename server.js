@@ -86,6 +86,14 @@ async function initDatabase() {
                     ['SC State Bulldogs', 'Four Tickets in Section 7 with Parking Pass in Garnet Way', 'Sept 6 @ 7:00PM', 25]
                 );
             }
+            
+            // Update dates to ensure proper ordering
+            await pool.query('UPDATE items SET date = $1 WHERE title = $2', ['Sept 6 @ 7:00PM', 'SC State Bulldogs']);
+            await pool.query('UPDATE items SET date = $1 WHERE title = $2', ['Sept 13', 'Vanderbilt Commodores']);
+            await pool.query('UPDATE items SET date = $1 WHERE title = $2', ['Sept 27', 'Kentucky Wildcats']);
+            await pool.query('UPDATE items SET date = $1 WHERE title = $2', ['Oct 18', 'Oklahoma Sooners']);
+            await pool.query('UPDATE items SET date = $1 WHERE title = $2', ['Oct 25', 'Alabama Crimson Tide']);
+            await pool.query('UPDATE items SET date = $1 WHERE title = $2', ['Nov 22', 'Coastal Carolina Chanticleers']);
         }
 
         console.log('Database initialized successfully');

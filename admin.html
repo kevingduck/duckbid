@@ -550,6 +550,7 @@
             document.getElementById('bidModalTitle').textContent = 'Add Manual Bid';
             document.getElementById('bidForm').reset();
             document.getElementById('bidItemGroup').style.display = 'block';
+            document.getElementById('bidItem').required = true; // Make required when visible
             
             // Load items for the dropdown
             try {
@@ -572,6 +573,7 @@
                 currentEditingBid = bidId;
                 document.getElementById('bidModalTitle').textContent = 'Edit Bid';
                 document.getElementById('bidItemGroup').style.display = 'none';
+                document.getElementById('bidItem').required = false; // Remove required when hidden
                 document.getElementById('bidName').value = bid.name;
                 document.getElementById('bidEmail').value = bid.email;
                 document.getElementById('bidPhone').value = bid.phone;
