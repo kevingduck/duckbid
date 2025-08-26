@@ -2,10 +2,17 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const cors = require('cors');
+const { Pool } = require('pg');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'duckbid2024';
+
+// Database connection
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_0nYjAQcFg8ve@ep-calm-sound-aduhe8zo-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require',
+    ssl: { rejectUnauthorized: false }
+});
 
 // Auction end time (August 29, 2025 at 2:00 PM EST)
 const AUCTION_END_TIME = new Date('2025-08-29T14:00:00-04:00');
@@ -20,93 +27,82 @@ app.get('/admin', (req, res) => {
     res.sendFile(path.join(__dirname, 'admin.html'));
 });
 
-// Database file paths
-const DATA_DIR = './data';
-const ITEMS_FILE = path.join(DATA_DIR, 'items.json');
-const BIDS_FILE = path.join(DATA_DIR, 'bids.json');
+// Initialize database tables
+async function initDatabase() {
+    try {
+        // Create items table
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS items (
+                id SERIAL PRIMARY KEY,
+                title VARCHAR(255) NOT NULL,
+                description TEXT NOT NULL,
+                date VARCHAR(100) NOT NULL,
+                starting_bid DECIMAL(10,2) NOT NULL,
+                active BOOLEAN DEFAULT true,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
 
-// Ensure data directory exists
-if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR);
-}
+        // Create bids table
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS bids (
+                id SERIAL PRIMARY KEY,
+                item_id INTEGER REFERENCES items(id) ON DELETE CASCADE,
+                name VARCHAR(255) NOT NULL,
+                email VARCHAR(255) NOT NULL,
+                phone VARCHAR(50) NOT NULL,
+                amount DECIMAL(10,2) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
 
-// Initialize database files
-function initDatabase() {
-    // Rotary Club Football Ticket Auction Items
-    const defaultItems = [
-        {
-            id: 1,
-            title: "SC State Bulldogs",
-            description: "Four Tickets in Section 7 with Parking Pass in Garnet Way",
-            date: "Sept 6 @ 7:00PM",
-            startingBid: 25,
-            active: true
-        },
-        {
-            id: 2,
-            title: "Vanderbilt Commodores",
-            description: "Four Tickets in Section 7 with Parking Pass in Garnet Way",
-            date: "Sept 13",
-            startingBid: 50,
-            active: true
-        },
-        {
-            id: 3,
-            title: "Kentucky Wildcats",
-            description: "Four Tickets in Section 7 with Parking Pass in Garnet Way",
-            date: "Sept 27",
-            startingBid: 75,
-            active: true
-        },
-        {
-            id: 4,
-            title: "Oklahoma Sooners",
-            description: "Four Tickets in Section 7 with Parking Pass in Garnet Way",
-            date: "Oct 18",
-            startingBid: 100,
-            active: true
-        },
-        {
-            id: 5,
-            title: "Alabama Crimson Tide",
-            description: "Four Tickets in Section 7 with Parking Pass in Garnet Way",
-            date: "Oct 25",
-            startingBid: 150,
-            active: true
-        },
-        {
-            id: 6,
-            title: "Coastal Carolina Chanticleers",
-            description: "Four Tickets in Section 7 with Parking Pass in Garnet Way",
-            date: "Nov 22",
-            startingBid: 40,
-            active: true
+        // Check if items exist, if not add default items
+        const itemCount = await pool.query('SELECT COUNT(*) FROM items');
+        if (parseInt(itemCount.rows[0].count) === 0) {
+            const defaultItems = [
+                ['SC State Bulldogs', 'Four Tickets in Section 7 with Parking Pass in Garnet Way', 'Sept 6 @ 7:00PM', 25],
+                ['Vanderbilt Commodores', 'Four Tickets in Section 7 with Parking Pass in Garnet Way', 'Sept 13', 50],
+                ['Kentucky Wildcats', 'Four Tickets in Section 7 with Parking Pass in Garnet Way', 'Sept 27', 75],
+                ['Oklahoma Sooners', 'Four Tickets in Section 7 with Parking Pass in Garnet Way', 'Oct 18', 100],
+                ['Alabama Crimson Tide', 'Four Tickets in Section 7 with Parking Pass in Garnet Way', 'Oct 25', 150],
+                ['Coastal Carolina Chanticleers', 'Four Tickets in Section 7 with Parking Pass in Garnet Way', 'Nov 22', 40]
+            ];
+
+            for (const [title, description, date, startingBid] of defaultItems) {
+                await pool.query(
+                    'INSERT INTO items (title, description, date, starting_bid) VALUES ($1, $2, $3, $4)',
+                    [title, description, date, startingBid]
+                );
+            }
         }
-    ];
 
-    if (!fs.existsSync(ITEMS_FILE)) {
-        fs.writeFileSync(ITEMS_FILE, JSON.stringify(defaultItems, null, 2));
-    }
-
-    if (!fs.existsSync(BIDS_FILE)) {
-        fs.writeFileSync(BIDS_FILE, JSON.stringify({}, null, 2));
+        console.log('Database initialized successfully');
+    } catch (err) {
+        console.error('Database initialization error:', err);
     }
 }
 
 // Database helper functions
-function readItems() {
+async function readItems() {
     try {
-        const data = fs.readFileSync(ITEMS_FILE, 'utf8');
-        return JSON.parse(data);
+        const result = await pool.query('SELECT * FROM items ORDER BY id');
+        return result.rows.map(row => ({
+            id: row.id,
+            title: row.title,
+            description: row.description,
+            date: row.date,
+            startingBid: parseFloat(row.starting_bid),
+            active: row.active
+        }));
     } catch (err) {
         console.error('Error reading items:', err);
         return [];
     }
 }
 
-function writeItems(items) {
+async function writeItems(items) {
     try {
-        fs.writeFileSync(ITEMS_FILE, JSON.stringify(items, null, 2));
+        // This function is kept for compatibility but not used in new implementation
         return true;
     } catch (err) {
         console.error('Error writing items:', err);
@@ -114,19 +110,32 @@ function writeItems(items) {
     }
 }
 
-function readBids() {
+async function readBids() {
     try {
-        const data = fs.readFileSync(BIDS_FILE, 'utf8');
-        return JSON.parse(data);
+        const result = await pool.query('SELECT * FROM bids ORDER BY created_at');
+        const bids = {};
+        result.rows.forEach(row => {
+            if (!bids[row.item_id]) {
+                bids[row.item_id] = [];
+            }
+            bids[row.item_id].push({
+                name: row.name,
+                email: row.email,
+                phone: row.phone,
+                amount: parseFloat(row.amount),
+                timestamp: row.created_at.toISOString()
+            });
+        });
+        return bids;
     } catch (err) {
         console.error('Error reading bids:', err);
         return {};
     }
 }
 
-function writeBids(bids) {
+async function writeBids(bids) {
     try {
-        fs.writeFileSync(BIDS_FILE, JSON.stringify(bids, null, 2));
+        // This function is kept for compatibility but not used in new implementation
         return true;
     } catch (err) {
         console.error('Error writing bids:', err);
@@ -134,14 +143,29 @@ function writeBids(bids) {
     }
 }
 
-function getHighestBid(itemId, bids) {
-    const itemBids = bids[itemId] || [];
-    if (itemBids.length === 0) {
+async function getHighestBid(itemId, bids) {
+    try {
+        const result = await pool.query(
+            'SELECT * FROM bids WHERE item_id = $1 ORDER BY amount DESC, created_at ASC LIMIT 1',
+            [itemId]
+        );
+        
+        if (result.rows.length === 0) {
+            return null;
+        }
+        
+        const row = result.rows[0];
+        return {
+            name: row.name,
+            email: row.email,
+            phone: row.phone,
+            amount: parseFloat(row.amount),
+            timestamp: row.created_at.toISOString()
+        };
+    } catch (err) {
+        console.error('Error getting highest bid:', err);
         return null;
     }
-    return itemBids.reduce((highest, current) => 
-        current.amount > highest.amount ? current : highest
-    );
 }
 
 function isAuctionClosed() {
@@ -149,26 +173,25 @@ function isAuctionClosed() {
 }
 
 // Initialize database
-initDatabase();
+initDatabase().catch(console.error);
 
 // Public API Routes
 
 // Get all active auction items with current bids
-app.get('/api/items', (req, res) => {
+app.get('/api/items', async (req, res) => {
     try {
-        const items = readItems().filter(item => item.active);
-        const bids = readBids();
+        const items = (await readItems()).filter(item => item.active);
         const auctionClosed = isAuctionClosed();
         
-        const itemsWithBids = items.map(item => {
-            const highestBid = getHighestBid(item.id, bids);
+        const itemsWithBids = await Promise.all(items.map(async item => {
+            const highestBid = await getHighestBid(item.id);
             return {
                 ...item,
                 currentBid: highestBid ? highestBid.amount : item.startingBid,
                 highBidder: highestBid ? { name: highestBid.name } : null,
                 auctionClosed
             };
-        });
+        }));
         
         res.json({
             items: itemsWithBids,
@@ -176,12 +199,13 @@ app.get('/api/items', (req, res) => {
             auctionEndTime: AUCTION_END_TIME.toISOString()
         });
     } catch (err) {
+        console.error('Error fetching items:', err);
         res.status(500).json({ error: 'Failed to fetch items' });
     }
 });
 
 // Place a bid
-app.post('/api/bid', (req, res) => {
+app.post('/api/bid', async (req, res) => {
     try {
         // Check if auction is closed
         if (isAuctionClosed()) {
@@ -194,15 +218,14 @@ app.post('/api/bid', (req, res) => {
             return res.status(400).json({ error: 'All fields are required' });
         }
 
-        const items = readItems();
+        const items = await readItems();
         const item = items.find(i => i.id === parseInt(itemId));
         
         if (!item || !item.active) {
             return res.status(404).json({ error: 'Item not found or inactive' });
         }
 
-        const bids = readBids();
-        const highestBid = getHighestBid(itemId, bids);
+        const highestBid = await getHighestBid(itemId);
         const minBid = highestBid ? highestBid.amount : item.startingBid;
 
         if (amount <= minBid) {
@@ -211,24 +234,11 @@ app.post('/api/bid', (req, res) => {
             });
         }
 
-        // Add the bid
-        if (!bids[itemId]) {
-            bids[itemId] = [];
-        }
-
-        const newBid = {
-            name,
-            email,
-            phone,
-            amount: parseFloat(amount),
-            timestamp: new Date().toISOString()
-        };
-
-        bids[itemId].push(newBid);
-        
-        if (!writeBids(bids)) {
-            return res.status(500).json({ error: 'Failed to save bid' });
-        }
+        // Add the bid to database
+        await pool.query(
+            'INSERT INTO bids (item_id, name, email, phone, amount) VALUES ($1, $2, $3, $4, $5)',
+            [itemId, name, email, phone, parseFloat(amount)]
+        );
 
         res.json({ 
             success: true, 
@@ -236,6 +246,7 @@ app.post('/api/bid', (req, res) => {
             currentBid: amount
         });
     } catch (err) {
+        console.error('Error placing bid:', err);
         res.status(500).json({ error: 'Failed to place bid' });
     }
 });
@@ -263,61 +274,62 @@ function requireAdmin(req, res, next) {
 // Admin API Routes
 
 // Get all items (including inactive)
-app.get('/api/admin/items', requireAdmin, (req, res) => {
+app.get('/api/admin/items', requireAdmin, async (req, res) => {
     try {
-        const items = readItems();
-        const bids = readBids();
+        const items = await readItems();
         
-        const itemsWithBids = items.map(item => {
-            const itemBids = bids[item.id] || [];
-            const highestBid = getHighestBid(item.id, bids);
+        const itemsWithBids = await Promise.all(items.map(async item => {
+            const highestBid = await getHighestBid(item.id);
+            const bidCount = await pool.query('SELECT COUNT(*) FROM bids WHERE item_id = $1', [item.id]);
             return {
                 ...item,
                 currentBid: highestBid ? highestBid.amount : item.startingBid,
                 highBidder: highestBid,
-                totalBids: itemBids.length
+                totalBids: parseInt(bidCount.rows[0].count)
             };
-        });
+        }));
         
         res.json(itemsWithBids);
     } catch (err) {
+        console.error('Error fetching admin items:', err);
         res.status(500).json({ error: 'Failed to fetch items' });
     }
 });
 
 // Get all bids
-app.get('/api/admin/bids', requireAdmin, (req, res) => {
+app.get('/api/admin/bids', requireAdmin, async (req, res) => {
     try {
-        const bids = readBids();
-        const items = readItems();
+        const result = await pool.query(`
+            SELECT b.*, i.title as item_title,
+                   CASE WHEN b.amount = (
+                       SELECT MAX(amount) FROM bids b2 
+                       WHERE b2.item_id = b.item_id
+                   ) THEN true ELSE false END as is_winning
+            FROM bids b
+            LEFT JOIN items i ON b.item_id = i.id
+            ORDER BY b.created_at DESC
+        `);
         
-        const allBids = [];
-        
-        for (const [itemId, itemBids] of Object.entries(bids)) {
-            const item = items.find(i => i.id === parseInt(itemId));
-            const highestBid = getHighestBid(parseInt(itemId), bids);
-            
-            itemBids.forEach(bid => {
-                allBids.push({
-                    ...bid,
-                    itemId: parseInt(itemId),
-                    itemTitle: item ? item.title : 'Unknown Item',
-                    isWinning: highestBid && bid.amount === highestBid.amount && bid.timestamp === highestBid.timestamp
-                });
-            });
-        }
-        
-        // Sort by timestamp (newest first)
-        allBids.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        const allBids = result.rows.map(row => ({
+            name: row.name,
+            email: row.email,
+            phone: row.phone,
+            amount: parseFloat(row.amount),
+            timestamp: row.created_at.toISOString(),
+            itemId: row.item_id,
+            itemTitle: row.item_title || 'Unknown Item',
+            isWinning: row.is_winning
+        }));
         
         res.json(allBids);
     } catch (err) {
+        console.error('Error fetching admin bids:', err);
         res.status(500).json({ error: 'Failed to fetch bids' });
     }
 });
 
 // Add new item
-app.post('/api/admin/items', requireAdmin, (req, res) => {
+app.post('/api/admin/items', requireAdmin, async (req, res) => {
     try {
         const { title, description, date, startingBid } = req.body;
         
@@ -325,85 +337,104 @@ app.post('/api/admin/items', requireAdmin, (req, res) => {
             return res.status(400).json({ error: 'All fields are required' });
         }
 
-        const items = readItems();
-        const newId = Math.max(...items.map(i => i.id), 0) + 1;
+        const result = await pool.query(
+            'INSERT INTO items (title, description, date, starting_bid) VALUES ($1, $2, $3, $4) RETURNING *',
+            [title, description, date, parseFloat(startingBid)]
+        );
         
         const newItem = {
-            id: newId,
-            title,
-            description,
-            date,
-            startingBid: parseFloat(startingBid),
-            active: true
+            id: result.rows[0].id,
+            title: result.rows[0].title,
+            description: result.rows[0].description,
+            date: result.rows[0].date,
+            startingBid: parseFloat(result.rows[0].starting_bid),
+            active: result.rows[0].active
         };
-
-        items.push(newItem);
-        
-        if (!writeItems(items)) {
-            return res.status(500).json({ error: 'Failed to save item' });
-        }
 
         res.json({ success: true, item: newItem });
     } catch (err) {
+        console.error('Error adding item:', err);
         res.status(500).json({ error: 'Failed to add item' });
     }
 });
 
 // Update item
-app.put('/api/admin/items/:id', requireAdmin, (req, res) => {
+app.put('/api/admin/items/:id', requireAdmin, async (req, res) => {
     try {
         const itemId = parseInt(req.params.id);
         const { title, description, date, startingBid, active } = req.body;
         
-        const items = readItems();
-        const itemIndex = items.findIndex(i => i.id === itemId);
+        const updateFields = [];
+        const values = [];
+        let paramCount = 1;
         
-        if (itemIndex === -1) {
+        if (title !== undefined) {
+            updateFields.push(`title = $${paramCount++}`);
+            values.push(title);
+        }
+        if (description !== undefined) {
+            updateFields.push(`description = $${paramCount++}`);
+            values.push(description);
+        }
+        if (date !== undefined) {
+            updateFields.push(`date = $${paramCount++}`);
+            values.push(date);
+        }
+        if (startingBid !== undefined) {
+            updateFields.push(`starting_bid = $${paramCount++}`);
+            values.push(parseFloat(startingBid));
+        }
+        if (active !== undefined) {
+            updateFields.push(`active = $${paramCount++}`);
+            values.push(active);
+        }
+        
+        if (updateFields.length === 0) {
+            return res.status(400).json({ error: 'No fields to update' });
+        }
+        
+        values.push(itemId);
+        
+        const result = await pool.query(
+            `UPDATE items SET ${updateFields.join(', ')} WHERE id = $${paramCount} RETURNING *`,
+            values
+        );
+        
+        if (result.rows.length === 0) {
             return res.status(404).json({ error: 'Item not found' });
         }
-
-        items[itemIndex] = {
-            ...items[itemIndex],
-            title: title || items[itemIndex].title,
-            description: description || items[itemIndex].description,
-            date: date || items[itemIndex].date,
-            startingBid: startingBid !== undefined ? parseFloat(startingBid) : items[itemIndex].startingBid,
-            active: active !== undefined ? active : items[itemIndex].active
-        };
         
-        if (!writeItems(items)) {
-            return res.status(500).json({ error: 'Failed to update item' });
-        }
+        const updatedItem = {
+            id: result.rows[0].id,
+            title: result.rows[0].title,
+            description: result.rows[0].description,
+            date: result.rows[0].date,
+            startingBid: parseFloat(result.rows[0].starting_bid),
+            active: result.rows[0].active
+        };
 
-        res.json({ success: true, item: items[itemIndex] });
+        res.json({ success: true, item: updatedItem });
     } catch (err) {
+        console.error('Error updating item:', err);
         res.status(500).json({ error: 'Failed to update item' });
     }
 });
 
 // Delete item
-app.delete('/api/admin/items/:id', requireAdmin, (req, res) => {
+app.delete('/api/admin/items/:id', requireAdmin, async (req, res) => {
     try {
         const itemId = parseInt(req.params.id);
         
-        const items = readItems();
-        const filteredItems = items.filter(i => i.id !== itemId);
+        const result = await pool.query('DELETE FROM items WHERE id = $1 RETURNING id', [itemId]);
         
-        if (filteredItems.length === items.length) {
+        if (result.rows.length === 0) {
             return res.status(404).json({ error: 'Item not found' });
         }
-        
-        if (!writeItems(filteredItems)) {
-            return res.status(500).json({ error: 'Failed to delete item' });
-        }
 
-        // Also remove bids for this item
-        const bids = readBids();
-        delete bids[itemId];
-        writeBids(bids);
-
+        // Bids will be automatically deleted due to CASCADE constraint
         res.json({ success: true });
     } catch (err) {
+        console.error('Error deleting item:', err);
         res.status(500).json({ error: 'Failed to delete item' });
     }
 });
