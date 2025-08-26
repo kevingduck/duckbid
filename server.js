@@ -311,6 +311,7 @@ app.get('/api/admin/bids', requireAdmin, async (req, res) => {
         `);
         
         const allBids = result.rows.map(row => ({
+            id: row.id,
             name: row.name,
             email: row.email,
             phone: row.phone,
@@ -436,6 +437,155 @@ app.delete('/api/admin/items/:id', requireAdmin, async (req, res) => {
     } catch (err) {
         console.error('Error deleting item:', err);
         res.status(500).json({ error: 'Failed to delete item' });
+    }
+});
+
+// Get individual bid details
+app.get('/api/admin/bids/:id', requireAdmin, async (req, res) => {
+    try {
+        const bidId = parseInt(req.params.id);
+        
+        const result = await pool.query(`
+            SELECT b.*, i.title as item_title
+            FROM bids b
+            LEFT JOIN items i ON b.item_id = i.id
+            WHERE b.id = $1
+        `, [bidId]);
+        
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Bid not found' });
+        }
+        
+        const row = result.rows[0];
+        const bid = {
+            id: row.id,
+            itemId: row.item_id,
+            itemTitle: row.item_title,
+            name: row.name,
+            email: row.email,
+            phone: row.phone,
+            amount: parseFloat(row.amount),
+            timestamp: row.created_at.toISOString()
+        };
+        
+        res.json(bid);
+    } catch (err) {
+        console.error('Error fetching bid details:', err);
+        res.status(500).json({ error: 'Failed to fetch bid details' });
+    }
+});
+
+// Update/edit an existing bid
+app.put('/api/admin/bids/:id', requireAdmin, async (req, res) => {
+    try {
+        const bidId = parseInt(req.params.id);
+        const { name, email, phone, amount } = req.body;
+        
+        const updateFields = [];
+        const values = [];
+        let paramCount = 1;
+        
+        if (name !== undefined) {
+            updateFields.push(`name = $${paramCount++}`);
+            values.push(name);
+        }
+        if (email !== undefined) {
+            updateFields.push(`email = $${paramCount++}`);
+            values.push(email);
+        }
+        if (phone !== undefined) {
+            updateFields.push(`phone = $${paramCount++}`);
+            values.push(phone);
+        }
+        if (amount !== undefined) {
+            updateFields.push(`amount = $${paramCount++}`);
+            values.push(parseFloat(amount));
+        }
+        
+        if (updateFields.length === 0) {
+            return res.status(400).json({ error: 'No fields to update' });
+        }
+        
+        values.push(bidId);
+        
+        const result = await pool.query(
+            `UPDATE bids SET ${updateFields.join(', ')} WHERE id = $${paramCount} RETURNING *`,
+            values
+        );
+        
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Bid not found' });
+        }
+        
+        const updatedBid = {
+            id: result.rows[0].id,
+            itemId: result.rows[0].item_id,
+            name: result.rows[0].name,
+            email: result.rows[0].email,
+            phone: result.rows[0].phone,
+            amount: parseFloat(result.rows[0].amount),
+            timestamp: result.rows[0].created_at.toISOString()
+        };
+        
+        res.json({ success: true, bid: updatedBid });
+    } catch (err) {
+        console.error('Error updating bid:', err);
+        res.status(500).json({ error: 'Failed to update bid' });
+    }
+});
+
+// Delete a bid
+app.delete('/api/admin/bids/:id', requireAdmin, async (req, res) => {
+    try {
+        const bidId = parseInt(req.params.id);
+        
+        const result = await pool.query('DELETE FROM bids WHERE id = $1 RETURNING id', [bidId]);
+        
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Bid not found' });
+        }
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error deleting bid:', err);
+        res.status(500).json({ error: 'Failed to delete bid' });
+    }
+});
+
+// Add a new bid manually (admin only)
+app.post('/api/admin/bids', requireAdmin, async (req, res) => {
+    try {
+        const { itemId, name, email, phone, amount } = req.body;
+        
+        if (!itemId || !name || !email || !phone || !amount) {
+            return res.status(400).json({ error: 'All fields are required' });
+        }
+
+        // Verify item exists
+        const itemCheck = await pool.query('SELECT id FROM items WHERE id = $1', [itemId]);
+        if (itemCheck.rows.length === 0) {
+            return res.status(404).json({ error: 'Item not found' });
+        }
+
+        const result = await pool.query(
+            'INSERT INTO bids (item_id, name, email, phone, amount) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+            [itemId, name, email, phone, parseFloat(amount)]
+        );
+        
+        const newBid = {
+            id: result.rows[0].id,
+            itemId: result.rows[0].item_id,
+            name: result.rows[0].name,
+            email: result.rows[0].email,
+            phone: result.rows[0].phone,
+            amount: parseFloat(result.rows[0].amount),
+            timestamp: result.rows[0].created_at.toISOString()
+        };
+
+        res.json({ success: true, bid: newBid });
+    } catch (err) {
+        console.error('Error adding bid:', err);
+        res.status(500).json({ error: 'Failed to add bid' });
     }
 });
 

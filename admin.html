@@ -196,7 +196,10 @@
 
             <!-- Bids Tab -->
             <div id="bidsTab" class="tab-content">
-                <h2>All Bids</h2>
+                <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                    <h2>All Bids</h2>
+                    <button id="addBidBtn" class="btn btn-success">Add Manual Bid</button>
+                </div>
                 <div id="bidStats" class="stats-grid"></div>
                 <div id="bidsList"></div>
             </div>
@@ -230,11 +233,45 @@
         </div>
     </div>
 
+    <!-- Bid Modal -->
+    <div id="bidModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2 id="bidModalTitle">Edit Bid</h2>
+            <form id="bidForm">
+                <div class="form-group" id="bidItemGroup" style="display: none;">
+                    <label for="bidItem">Item:</label>
+                    <select id="bidItem" required>
+                        <option value="">Select an item...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="bidName">Bidder Name:</label>
+                    <input type="text" id="bidName" required>
+                </div>
+                <div class="form-group">
+                    <label for="bidEmail">Email:</label>
+                    <input type="email" id="bidEmail" required>
+                </div>
+                <div class="form-group">
+                    <label for="bidPhone">Phone:</label>
+                    <input type="tel" id="bidPhone" required>
+                </div>
+                <div class="form-group">
+                    <label for="bidAmount">Bid Amount ($):</label>
+                    <input type="number" id="bidAmount" min="1" step="0.01" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Save Bid</button>
+            </form>
+        </div>
+    </div>
+
     <script>
         // API Configuration
         const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
         let authToken = null;
         let currentEditingItem = null;
+        let currentEditingBid = null;
 
         // API Helper
         async function apiCall(endpoint, options = {}) {
@@ -397,6 +434,10 @@
                     <p><strong>Phone:</strong> ${bid.phone}</p>
                     <p><strong>Amount:</strong> $${bid.amount}</p>
                     <p><strong>Date:</strong> ${new Date(bid.timestamp).toLocaleString()}</p>
+                    <div class="item-actions">
+                        <button class="btn btn-warning" onclick="editBid(${bid.id})">Edit</button>
+                        <button class="btn btn-danger" onclick="deleteBid(${bid.id})">Delete</button>
+                    </div>
                 `;
                 list.appendChild(div);
             });
@@ -503,14 +544,107 @@
             }
         });
 
+        // Add manual bid button handler
+        document.getElementById('addBidBtn').addEventListener('click', async () => {
+            currentEditingBid = null;
+            document.getElementById('bidModalTitle').textContent = 'Add Manual Bid';
+            document.getElementById('bidForm').reset();
+            document.getElementById('bidItemGroup').style.display = 'block';
+            
+            // Load items for the dropdown
+            try {
+                const items = await apiCall('/admin/items');
+                const select = document.getElementById('bidItem');
+                select.innerHTML = '<option value="">Select an item...</option>';
+                items.forEach(item => {
+                    select.innerHTML += `<option value="${item.id}">${item.title}</option>`;
+                });
+            } catch (error) {
+                alert('Failed to load items: ' + error.message);
+            }
+            
+            document.getElementById('bidModal').style.display = 'block';
+        });
+
+        // Bid management functions
+        function editBid(bidId) {
+            apiCall(`/admin/bids/${bidId}`).then(bid => {
+                currentEditingBid = bidId;
+                document.getElementById('bidModalTitle').textContent = 'Edit Bid';
+                document.getElementById('bidItemGroup').style.display = 'none';
+                document.getElementById('bidName').value = bid.name;
+                document.getElementById('bidEmail').value = bid.email;
+                document.getElementById('bidPhone').value = bid.phone;
+                document.getElementById('bidAmount').value = bid.amount;
+                document.getElementById('bidModal').style.display = 'block';
+            }).catch(error => {
+                alert('Failed to load bid details: ' + error.message);
+            });
+        }
+
+        async function deleteBid(bidId) {
+            if (!confirm('Are you sure you want to delete this bid?')) return;
+            
+            try {
+                await apiCall(`/admin/bids/${bidId}`, { method: 'DELETE' });
+                loadBids(); // Reload the bids to refresh the display
+            } catch (error) {
+                alert('Failed to delete bid: ' + error.message);
+            }
+        }
+
+        // Bid form submission
+        document.getElementById('bidForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = {
+                name: document.getElementById('bidName').value,
+                email: document.getElementById('bidEmail').value,
+                phone: document.getElementById('bidPhone').value,
+                amount: parseFloat(document.getElementById('bidAmount').value)
+            };
+
+            // For new bids, include the item ID
+            if (!currentEditingBid) {
+                formData.itemId = parseInt(document.getElementById('bidItem').value);
+                if (!formData.itemId) {
+                    alert('Please select an item');
+                    return;
+                }
+            }
+
+            try {
+                if (currentEditingBid) {
+                    // Edit existing bid
+                    await apiCall(`/admin/bids/${currentEditingBid}`, {
+                        method: 'PUT',
+                        body: JSON.stringify(formData)
+                    });
+                } else {
+                    // Add new bid
+                    await apiCall('/admin/bids', {
+                        method: 'POST',
+                        body: JSON.stringify(formData)
+                    });
+                }
+                
+                document.getElementById('bidModal').style.display = 'none';
+                loadBids(); // Reload to show updated/new bid
+            } catch (error) {
+                alert('Failed to save bid: ' + error.message);
+            }
+        });
+
         // Modal close handlers
-        document.querySelector('.close').addEventListener('click', () => {
-            document.getElementById('itemModal').style.display = 'none';
+        document.querySelectorAll('.close').forEach(closeBtn => {
+            closeBtn.addEventListener('click', (e) => {
+                e.target.closest('.modal').style.display = 'none';
+            });
         });
 
         window.addEventListener('click', (event) => {
-            if (event.target === document.getElementById('itemModal')) {
-                document.getElementById('itemModal').style.display = 'none';
+            if (event.target.classList.contains('modal')) {
+                event.target.style.display = 'none';
             }
         });
     </script>
