@@ -61,17 +61,29 @@ async function initDatabase() {
         if (parseInt(itemCount.rows[0].count) === 0) {
             const defaultItems = [
                 ['SC State Bulldogs', 'Four Tickets in Section 7 with Parking Pass in Garnet Way', 'Sept 6 @ 7:00PM', 25],
-                ['Vanderbilt Commodores', 'Four Tickets in Section 7 with Parking Pass in Garnet Way', 'Sept 13', 50],
-                ['Kentucky Wildcats', 'Four Tickets in Section 7 with Parking Pass in Garnet Way', 'Sept 27', 75],
-                ['Oklahoma Sooners', 'Four Tickets in Section 7 with Parking Pass in Garnet Way', 'Oct 18', 100],
-                ['Alabama Crimson Tide', 'Four Tickets in Section 7 with Parking Pass in Garnet Way', 'Oct 25', 150],
-                ['Coastal Carolina Chanticleers', 'Four Tickets in Section 7 with Parking Pass in Garnet Way', 'Nov 22', 40]
+                ['Vanderbilt Commodores', 'Four Tickets in Section 7 with Parking Pass in Garnet Way', 'Sept 13', 25],
+                ['Kentucky Wildcats', 'Four Tickets in Section 7 with Parking Pass in Garnet Way', 'Sept 27', 25],
+                ['Oklahoma Sooners', 'Four Tickets in Section 7 with Parking Pass in Garnet Way', 'Oct 18', 25],
+                ['Alabama Crimson Tide', 'Four Tickets in Section 7 with Parking Pass in Garnet Way', 'Oct 25', 25],
+                ['Coastal Carolina Chanticleers', 'Four Tickets in Section 7 with Parking Pass in Garnet Way', 'Nov 22', 25]
             ];
 
             for (const [title, description, date, startingBid] of defaultItems) {
                 await pool.query(
                     'INSERT INTO items (title, description, date, starting_bid) VALUES ($1, $2, $3, $4)',
                     [title, description, date, startingBid]
+                );
+            }
+        } else {
+            // Update existing items to have correct starting bids if they're wrong
+            await pool.query('UPDATE items SET starting_bid = 25 WHERE starting_bid != 25');
+            
+            // Ensure SC State Bulldogs exists
+            const scStateExists = await pool.query('SELECT COUNT(*) FROM items WHERE title = $1', ['SC State Bulldogs']);
+            if (parseInt(scStateExists.rows[0].count) === 0) {
+                await pool.query(
+                    'INSERT INTO items (title, description, date, starting_bid) VALUES ($1, $2, $3, $4)',
+                    ['SC State Bulldogs', 'Four Tickets in Section 7 with Parking Pass in Garnet Way', 'Sept 6 @ 7:00PM', 25]
                 );
             }
         }
