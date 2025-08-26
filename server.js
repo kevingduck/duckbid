@@ -97,7 +97,20 @@ async function initDatabase() {
 // Database helper functions
 async function readItems() {
     try {
-        const result = await pool.query('SELECT * FROM items ORDER BY id');
+        // Custom ordering to show items by game date
+        const result = await pool.query(`
+            SELECT * FROM items 
+            ORDER BY 
+                CASE title
+                    WHEN 'SC State Bulldogs' THEN 1
+                    WHEN 'Vanderbilt Commodores' THEN 2
+                    WHEN 'Kentucky Wildcats' THEN 3
+                    WHEN 'Oklahoma Sooners' THEN 4
+                    WHEN 'Alabama Crimson Tide' THEN 5
+                    WHEN 'Coastal Carolina Chanticleers' THEN 6
+                    ELSE 99
+                END
+        `);
         return result.rows.map(row => ({
             id: row.id,
             title: row.title,
